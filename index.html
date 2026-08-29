@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TimeMark Camera</title>
+    <style>
+        body { margin: 0; background: #000; color: #fff; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
+        #camera-container { position: relative; width: 100%; max-width: 480px; height: 70vh; background: #222; display: flex; justify-content: center; align-items: center; overflow: hidden; }
+        video, canvas { position: absolute; width: 100%; height: 100%; object-fit: cover; }
+        #watermark-overlay { position: absolute; bottom: 15px; left: 15px; background: rgba(0, 0, 0, 0.6); padding: 10px 14px; border-radius: 6px; font-size: 14px; line-height: 1.4; pointer-events: none; border-left: 4px solid #ffcc00; }
+        .controls { margin-top: 15px; display: flex; gap: 15px; }
+        button { background: #ffcc00; border: none; padding: 12px 24px; font-weight: bold; border-radius: 30px; cursor: pointer; font-size: 16px; color: #000; }
+        button:active { background: #e0b400; }
+    </style>
+</head>
+<body>
+
+    <div id="camera-container">
+        <video id="video" autoplay playsinline></video>
+        <canvas id="canvas" style="display:none;"></canvas>
+        <div id="watermark-overlay">
+            <span id="wm-time"></span><br>
+            <span id="wm-loc">Fetching location...</span>
+        </div>
+    </div>
+
+    <div class="controls">
+        <button id="capture-btn">Snap Photo</button>
+    </div>
+
+    <script>
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const timeSpan = document.getElementById('wm-time');
+        const locSpan = document.getElementById('wm-loc');
+        const captureBtn = document.getElementById('capture-btn');
+
+        let currentAddress = "Lat: 0.0, Long: 0.0";
+
+        // Access Device Camera
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false })
+            .then(stream => { video.srcObject = stream; })
+            .catch(err => { alert("Camera access denied or unavailable."); });
+
+        // Fetch Real-Time Location & Formatted Date
+        function updateWatermarkData() {
+            const now = new Date();
+            timeSpan.innerText = now.toLocaleString();
+        }
+        setInterval(updateWatermarkData, 1000);
+
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(position => {
+                const lat = position.coords.latitude.toFixed(4);
+                const lon = position.coords.longitude.toFixed(4);
+                currentAddress = `GPS: ${lat}, ${lon}`;
+                locSpan.innerText = currentAddress;
+            }, () => {
+                locSpan.innerText = "Location access blocked";
+            });
+        } else {
+            locSpan.innerText = "Geolocation not supported";
+        }
+
+        // Capture and Stamp Image
+        captureBtn.addEventListener('click', () => {
+            canvas.width = video.videoWidth || 1280;
+            canvas.height = video.videoHeight || 720;
+            const ctx = canvas.getContext('2d');
+
+            // Draw video frame
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            // Draw Watermark Box Styling onto Image Canvas
+            const boxX = 40;
+            const boxY = canvas.height - 180;
+            const boxWidth = 500;
+            const boxHeight = 120;
+
+            ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
+            ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
+
+            ctx.fillStyle = "#ffcc00";
+            ctx.fillRect(boxX, boxY, 8, boxHeight); // Yellow side accent border
+
+            // Draw Text inside stamp
+            ctx.fillStyle = "#ffffff";
+            ctx.font = "bold 28px sans-serif";
+            ctx.fillText(new Date().toLocaleString(), boxX + 25, boxY + 45);
+
+            ctx.font = "22px sans-serif";
+            ctx.fillText(currentAddress, boxX + 25, boxY + 90);
+
+            // Trigger Download of Stamped Image
+            const link = document.createElement('a');
+            link.download = `timemark_${Date.now()}.png`;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        });
+    </script>
+</body>
+</html>
